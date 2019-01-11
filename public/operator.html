@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <title>彩播 - 刮票端</title>
+    <style type="text/css">
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+        }
+
+        #videos {
+            position: absolute;
+            left: 30%;
+            top: 0;
+            bottom: 0;
+            right: 0;
+            overflow: auto;
+        }
+
+        #videos video {
+            display: inline-block;
+            width: 32%;
+        }
+
+        #chat {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 30%;
+            border: 1px solid #0f0f0f;
+        }
+
+        #chat .msgIpt,
+        #chat .fileIpt {
+            position: absolute;
+            left: 0;
+            width: 80%;
+        }
+
+        #chat .sendBtn,
+        #chat .screenshotBtn {
+            position: absolute;
+            left: 80%;
+            width: 20%;
+        }
+
+        #chat .msgIpt,
+        #chat .sendBtn {
+            bottom: 0;
+        }
+
+        #chat .fileIpt,
+        #chat .screenshotBtn {
+            bottom: 30px;
+        }
+
+        #chat .msgs {
+            padding: 5%;
+        }
+
+        #chat .msgs p {
+            margin: 0.3em 0;
+        }
+
+        #files {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 20%;
+        }
+
+        #files .percent {
+            font-weight: bold;
+            text-decoration: none
+        }
+    </style>
+</head>
+
+<body>
+    <div id="chat">
+        <div class="msgs" id="msgs"></div>
+        <input type="text" id="msgIpt" class="msgIpt">
+        <button id="sendBtn" class="sendBtn">发送</button>
+        <button id="screenshotBtn" class="screenshotBtn">保存截图</button>
+    </div>
+    <div id="videos">
+        <video id="me" playsinline autoplay></video>
+        <!-- <canvas id="canvas"></canvas> -->
+    </div>
+    <div id="files">
+    </div>
+</body>
+<script type="text/javascript" src="js/SkyRTC-client.js"></script>
+<script type="text/javascript">
+    var videos = document.getElementById("videos");
+    var sendBtn = document.getElementById("sendBtn");
+    var msgs = document.getElementById("msgs");
+    var rtc = SkyRTC();
+
+    /**********************************************************/
+    sendBtn.onclick = function (event) {
+        var msgIpt = document.getElementById("msgIpt"),
+            msg = msgIpt.value,
+            p = document.createElement("p");
+        p.innerText = "me: " + msg;
+        //广播消息
+        rtc.broadcast(msg);
+        msgIpt.value = "";
+        msgs.appendChild(p);
+    };
+
+    // 获取url参数
+    function getQueryVariable(variable) {
+        var query = window.location.search.substring(1);
+        var vars = query.split("&");
+        for (var i = 0; i < vars.length; i++) {
+            var pair = vars[i].split("=");
+            if (pair[0] == variable) { return pair[1]; }
+        }
+        return ("");
+    }
+    /**********************************************************/
+
+
+    //成功创建WebSocket连接
+    rtc.on("connected", function (socket) {
+        //创建本地视频流
+        rtc.createStream({
+            "video": true,
+            "audio": false
+        });
+    });
+    //创建本地视频流成功
+    rtc.on("stream_created", function (stream) {
+        document.getElementById('me').srcObject = stream;
+        document.getElementById('me').play();
+    });
+    //创建本地视频流失败
+    rtc.on("stream_create_error", function (err) {
+        alert("create stream failed!");
+    });
+    //接收到其他用户的视频流
+    rtc.on('pc_add_stream', function (stream, socketId, windowId) {
+        console.log(windowId);
+        var newVideo = document.createElement("video"),
+            id = "other-" + socketId;
+        newVideo.setAttribute("class", "other");
+        newVideo.setAttribute("autoplay", "autoplay");
+        newVideo.setAttribute("id", id);
+        videos.appendChild(newVideo);
+        rtc.attachStream(stream, id);
+    });
+    //删除其他用户
+    rtc.on('remove_peer', function (socketId, windowId) {
+        var video = document.getElementById('other-' + socketId);
+        if (video) {
+            video.parentNode.removeChild(video);
+        }
+    });
+    //接收到文字信息
+    rtc.on('data_channel_message', function (channel, socketId, windowId, message) {
+        var p = document.createElement("p");
+        p.innerText = "窗口" + windowId + ": " + message;
+        msgs.appendChild(p);
+    });
+    //连接WebSocket服务器
+    rtc.connect("wss:" + window.location.href.substring(window.location.protocol.length), getQueryVariable("room"), getQueryVariable("window"));
+</script>
+
+<script type="text/javascript">
+    var video = document.getElementById('me');
+    var canvas = document.createElement('canvas');
+    var a = document.createElement('a');
+
+    var button = document.getElementById("screenshotBtn");
+    button.onclick = function () {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        // 下载截图
+        var url = canvas.toDataURL('image/jpeg');
+        a.href = url;
+        a.download = '彩票ID.jpg';
+        a.click();
+    };
+</script>
+
+</html>
